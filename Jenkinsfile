@@ -196,9 +196,3 @@ EOF
     }
   }
 }
-
-    always {
-      echo "Build finished: ${currentBuild.currentResult}"
-    }
-  }
-}
