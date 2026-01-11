@@ -28,12 +28,18 @@ pipeline {
             }
             steps {
                 sh '''
-                  python --version
-                  pip install --upgrade pip
-                  if [ -f requirements.txt ]; then
-                    pip install -r requirements.txt
-                  fi
-                  pytest -v
+                      python --version
+                      pip install --upgrade pip
+
+                      # install app deps
+                      if [ -f requirements.txt ]; then
+                      pip install -r requirements.txt
+                      fi
+
+                      # install test deps
+                      pip install pytest
+
+                      pytest -v
                 '''
             }
         }
