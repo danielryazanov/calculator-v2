@@ -2,15 +2,19 @@ pipeline {
     agent none
 
     environment {
-        APP_NAME = "calculator"
-        APP_PORT = "5000"
-        PROD_HOST = "<PROD_PUBLIC_IP>"   // תעדכן
+        APP_NAME  = "calculator"
+        APP_PORT  = "5000"
+        // PROD_HOST = "<PROD_PUBLIC_IP>"  // תגדיר בהמשך
     }
 
     stages {
 
         stage('Checkout') {
-            agent { docker { image 'alpine/git' } }
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                }
+            }
             steps {
                 checkout scm
             }
@@ -24,8 +28,31 @@ pipeline {
             }
             steps {
                 sh '''
-                  pip install --no-cache-dir -r requirements.txt
-                  pytest -q
+                  python --version
+                  pip install --upgrade pip
+                  if [ -f requirements.txt ]; then
+                    pip install -r requirements.txt
+                  fi
+                  pytest -v
+                '''
+            }
+        }
+
+        stage('Build & Push Image (ECR)') {
+            when {
+                branch 'main'
+            }
+            agent {
+                docker {
+                    image 'docker:27-cli'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                sh '''
+                  docker version
+                  echo "Docker build & push stage"
+                  # כאן בהמשך נכניס ECR login + build + push
                 '''
             }
         }
@@ -36,28 +63,15 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'alpine'
+                    image 'docker:27-cli'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
-                withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'prod-ssh',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
-                    )
-                ]) {
-                    sh '''
-                      apk add --no-cache openssh-client
-                      ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" $SSH_USER@''' + PROD_HOST + ''' '
-                        docker rm -f calculator || true
-                        docker run -d --name calculator \
-                          -p 5000:5000 \
-                          python:3.11-slim \
-                          python api.py
-                      '
-                    '''
-                }
+                sh '''
+                  echo "Deploy stage placeholder"
+                  # כאן בהמשך יהיה ssh + docker run על שרת ה־prod
+                '''
             }
         }
     }
