@@ -9,13 +9,13 @@ pipeline {
   environment {
     AWS_REGION = "us-east-1"
 
-    // ECR repo (נתת)
+    // ECR repo
     ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/calculator-app-daniel"
 
     APP_NAME  = "calculator"
     APP_PORT  = "5000"
 
-    // PROD (נתת)
+    // PROD
     PROD_HOST = "3.91.231.32"
     PROD_USER = "ec2-user"
 
@@ -85,22 +85,21 @@ pipeline {
       steps {
         sh '''
           set -e
+
+          # aws cli inside agent (alpine)
           apk add --no-cache aws-cli >/dev/null
           aws --version
+
+          # sanity: confirm we really have Instance Role credentials
+          aws sts get-caller-identity
+
+          # login + push
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "992382545251.dkr.ecr.us-east-1.amazonaws.com"
+
+          docker push "$IMAGE_FULL"
+          docker push "$IMAGE_LATEST"
         '''
-
-        // אם יש לך Credentials בשם aws-access – זה יעבוד.
-        // אם אין לך – תגיד לי, ואכין גרסה שמסתמכת רק על Instance Role.
-        withCredentials([usernamePassword(credentialsId: 'aws-access', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-          sh '''
-            set -e
-            aws ecr get-login-password --region "$AWS_REGION" \
-              | docker login --username AWS --password-stdin "992382545251.dkr.ecr.us-east-1.amazonaws.com"
-
-            docker push "$IMAGE_FULL"
-            docker push "$IMAGE_LATEST"
-          '''
-        }
       }
     }
 
@@ -115,6 +114,7 @@ pipeline {
       }
 
       steps {
+        // צריך את זה כן: SSH key לשרת פרודקשן
         withCredentials([sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
           sh '''
             set -e
@@ -134,11 +134,15 @@ pipeline {
 
               docker --version
 
+              # ensure aws cli exists on PROD (Amazon Linux)
               if ! command -v aws >/dev/null 2>&1; then
                 sudo yum install -y awscli
               fi
 
               aws --version
+
+              # confirm PROD has role creds
+              aws sts get-caller-identity
 
               aws ecr get-login-password --region "$AWS_REGION" \
                 | docker login --username AWS --password-stdin "${ECR_REPO%/*}"
@@ -187,6 +191,12 @@ EOF
   }
 
   post {
+    always {
+      echo "Build finished: ${currentBuild.currentResult}"
+    }
+  }
+}
+
     always {
       echo "Build finished: ${currentBuild.currentResult}"
     }
