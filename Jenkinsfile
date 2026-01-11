@@ -211,5 +211,32 @@ EOSSH
                 }
             }
         }
+      }
+      steps {
+        sh '''
+          set -e
+          echo "Health check: http://$PROD_HOST:$APP_PORT/"
+
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS "http://$PROD_HOST:$APP_PORT/" >/dev/null; then
+              echo "OK"
+              exit 0
+            fi
+            echo "Not ready yet... ($i/10)"
+            sleep 3
+          done
+
+          echo "Health check failed"
+          exit 1
+        '''
+      }
     }
+  }
+
+  post {
+    always {
+      echo "Build finished: ${currentBuild.currentResult}"
+    }
+  }
 }
+
